@@ -22,7 +22,7 @@ def build_app():
             "pyinstaller",
             "--name=OllamaProxy",
             "--windowed",  # GUI application without console window
-            "--add-data=resources;resources",
+            "--noconfirm",  # Don't ask for confirmation when removing output directory
             "--hidden-import=pystray",
             "--hidden-import=PIL",
             "app.py"
@@ -30,8 +30,9 @@ def build_app():
         
         # Adjust parameters based on platform
         if platform.system() == "Darwin":  # macOS
-            build_cmd.insert(4, "--icon=resources/mac.icns")
             build_cmd.extend([
+                "--icon=resources/mac.icns",
+                "--add-data=resources:resources",
                 "--add-data=main.py:.",
                 "--add-data=config.py:.",
                 "--add-data=config.json:.",
@@ -41,8 +42,9 @@ def build_app():
                 "--target-architecture", "arm64"
             ])
         else:  # Windows
-            build_cmd.insert(4, "--icon=resources/wintray.ico")
             build_cmd.extend([
+                "--icon=resources/wintray.ico",
+                "--add-data=resources;resources",
                 "--add-data=main.py;.",
                 "--add-data=config.py;.",
                 "--add-data=config.json;.",

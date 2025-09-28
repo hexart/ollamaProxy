@@ -288,11 +288,13 @@ class CrossPlatformApp:
                     lambda icon, item: None,
                     enabled=False
                 ),
+                pystray.Menu.SEPARATOR,
                 pystray.MenuItem("启动服务", self.start_server,
                                enabled=not self.is_running),
                 pystray.MenuItem("停止服务", self.stop_server,
                                enabled=self.is_running),
                 pystray.MenuItem("设置端口", self.set_port),
+                pystray.Menu.SEPARATOR,
                 pystray.MenuItem("退出", self.quit_app)
             ]
             
