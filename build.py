@@ -44,9 +44,21 @@ def build_app():
                 "--add-data=config.json:.",
                 "--add-data=resources/menuicon_16.png:.",
                 "--add-data=resources/menuicon_32.png:.",
-                "--osx-bundle-identifier", "com.ollama.proxy",
-                "--target-architecture", "arm64"
+                "--osx-bundle-identifier", "com.ollama.proxy"
             ])
+            
+            # 根据当前系统架构自动选择目标架构
+            current_arch = platform.machine().lower()
+            if current_arch in ['arm64', 'aarch64']:
+                target_arch = "arm64"
+            elif current_arch in ['x86_64', 'amd64']:
+                target_arch = "x86_64"
+            else:
+                # 如果无法识别架构，使用当前架构
+                target_arch = current_arch
+            
+            build_cmd.extend(["--target-architecture", target_arch])
+            print(f"Target architecture for macOS: {target_arch} (detected: {current_arch})")
         else:  # Windows
             build_cmd.extend([
                 "--icon=resources/wintray.ico",
@@ -57,11 +69,15 @@ def build_app():
                 "--add-data=resources/wintray.ico;."
             ])
             
-            # For ARM Windows, we might need specific handling
-            if platform.machine() == "ARM64":
-                print("Detected ARM64 Windows architecture")
-                # No specific changes needed for ARM64 in PyInstaller as of now
-                # But we can log this information for debugging purposes
+            # Windows架构检测和提示
+            current_arch = platform.machine().lower()
+            if current_arch in ['arm64', 'aarch64']:
+                print(f"Detected ARM64 Windows architecture: {current_arch}")
+                print("Note: Building for ARM64 Windows")
+            elif current_arch in ['x86_64', 'amd64']:
+                print(f"Detected x64 Windows architecture: {current_arch}")
+            else:
+                print(f"Detected Windows architecture: {current_arch}")
         
         subprocess.run(build_cmd, check=True)
         print("Application build completed")

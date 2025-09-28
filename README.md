@@ -23,6 +23,32 @@
 - `/docs` - Swagger UI文档
 - `/redoc` - ReDoc文档
 
+## 支持的平台
+
+本应用支持多种操作系统和硬件架构的组合：
+
+### macOS
+- **Intel Mac (x86_64)**: macOS 10.12 或更高版本
+- **Apple Silicon Mac (ARM64)**: macOS 11.0 或更高版本
+- 自动检测CPU架构并生成对应的原生二进制文件
+- 支持Universal Binary兼容性
+
+### Windows
+- **Windows x64 (AMD64)**: Windows 7 或更高版本
+- **Windows ARM64**: Windows 10 ARM 或更高版本
+- 自动适配当前系统架构
+- 支持Windows 10/11原生性能
+
+### Linux
+- **理论支持**: 基于pystray的GTK实现
+- 需要手动构建和测试
+- 推荐使用Ubuntu 18.04+或同等发行版
+
+### 架构特性
+- **自动架构检测**: 构建过程自动识别当前CPU架构
+- **原生性能**: 为目标架构生成优化的二进制文件
+- **跨架构兼容**: 在不同架构间确保API兼容性
+
 ## 系统要求
 
 ### macOS
