@@ -77,6 +77,14 @@ if exist "dist\OllamaProxy\" (
         del "OllamaProxy.zip"
     )
     
+    REM Wait a bit to ensure PyInstaller has fully released all file locks
+    timeout /t 3 /nobreak >nul
+    
+    REM Retry mechanism for creating ZIP package
+    set retry_count=0
+    :retry_zip
+    echo [INFO] Attempting to create ZIP package (attempt %retry_count%)
+    
     REM Use PowerShell to create ZIP (works on Windows 10+)
     powershell -Command "Compress-Archive -Path 'OllamaProxy\*' -DestinationPath 'OllamaProxy.zip' -Force"
     if %errorlevel% equ 0 (
@@ -86,7 +94,16 @@ if exist "dist\OllamaProxy\" (
             echo [INFO] ZIP file size: %%~zI bytes
         )
     ) else (
-        echo [ERROR] Failed to create ZIP package
+        set /a retry_count+=1
+        if %retry_count% LSS 3 (
+            echo [WARNING] Failed to create ZIP package, waiting 2 seconds before retry...
+            timeout /t 2 /nobreak >nul
+            goto :retry_zip
+        ) else (
+            echo [ERROR] Failed to create ZIP package after 3 attempts
+            cd ..
+            exit /b 1
+        )
     )
     cd ..
 ) else (
@@ -98,5 +115,3 @@ echo [INFO] Application location: dist\OllamaProxy\
 if exist "dist\OllamaProxy.zip" (
     echo [INFO] ZIP package: dist\OllamaProxy.zip
 )
-
-pause
