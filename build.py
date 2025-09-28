@@ -7,7 +7,6 @@ import os
 import sys
 import subprocess
 import platform
-import shutil
 
 def install_build_dependencies():
     """Install build dependencies - this should be done by the build script"""
@@ -45,7 +44,8 @@ def build_app():
                 "--add-data=config.json:.",
                 "--add-data=resources/menuicon_16.png:.",
                 "--add-data=resources/menuicon_32.png:.",
-                "--osx-bundle-identifier", "com.ollama.proxy"
+                "--osx-bundle-identifier", "com.ollama.proxy",
+                "--target-architecture", "arm64"
             ])
         else:  # Windows
             build_cmd.extend([

@@ -69,7 +69,34 @@ if %errorlevel% neq 0 (
 )
 echo [INFO] Application built successfully
 
+REM Create ZIP package
+echo [INFO] Creating ZIP package...
+if exist "dist\OllamaProxy\" (
+    cd dist
+    if exist "OllamaProxy.zip" (
+        del "OllamaProxy.zip"
+    )
+    
+    REM Use PowerShell to create ZIP (works on Windows 10+)
+    powershell -Command "Compress-Archive -Path 'OllamaProxy\*' -DestinationPath 'OllamaProxy.zip' -Force"
+    if %errorlevel% equ 0 (
+        echo [INFO] ZIP package created: dist\OllamaProxy.zip
+        REM Get ZIP file size
+        for %%I in ("OllamaProxy.zip") do (
+            echo [INFO] ZIP file size: %%~zI bytes
+        )
+    ) else (
+        echo [ERROR] Failed to create ZIP package
+    )
+    cd ..
+) else (
+    echo [ERROR] OllamaProxy directory not found in dist
+)
+
 echo [INFO] Build completed successfully!
 echo [INFO] Application location: dist\OllamaProxy\
+if exist "dist\OllamaProxy.zip" (
+    echo [INFO] ZIP package: dist\OllamaProxy.zip
+)
 
 pause

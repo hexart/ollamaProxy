@@ -64,37 +64,24 @@
 }
 ```
 
-## Windows服务安装（仅限Windows）
-
-如果您希望将应用安装为Windows系统服务，可以使用`install_service.bat`脚本。
-这需要管理员权限，并且建议使用NSSM (Non-Sucking Service Manager) 工具。
-
-1. 下载并安装NSSM: https://nssm.cc/download
-2. 以管理员身份运行`install_service.bat`
-3. 按照提示使用NSSM将应用安装为系统服务
-
 ## 开发
 
 ### 项目结构
 
 ```
-clients/
 ├── app.py              # 跨平台系统托盘应用主程序（使用pystray）
 ├── main.py             # FastAPI服务核心
 ├── config.py           # 配置管理
 ├── config.json         # 配置文件
 ├── build.py            # 跨平台打包脚本
-├── build_with_uv.py    # 使用uv创建虚拟环境的打包脚本
-├── build.sh            # macOS/Linux构建脚本
-├── build.bat           # Windows构建脚本
+├── build.sh            # macOS/Linux构建脚本（自动创建DMG）
+├── build.bat           # Windows构建脚本（自动创建ZIP）
 ├── requirements.txt    # 依赖列表
 ├── resources/          # 图标资源文件夹
 │   ├── mac.icns        # macOS应用图标文件
 │   ├── menuicon_16.png # macOS菜单栏16x16 PNG图标文件
 │   ├── menuicon_32.png # macOS菜单栏32x32 PNG图标文件
 │   └── wintray.ico     # Windows系统托盘图标文件
-├── start_service.bat   # Windows启动脚本
-├── install_service.bat # Windows安装服务脚本
 └── README.md           # 说明文档
 ```
 
@@ -121,35 +108,45 @@ python app.py
 
 ### 打包应用
 
-#### 方法1：使用标准打包脚本
+#### 方法1：使用直接打包脚本
 ```bash
 # 打包应用（会根据当前平台自动选择合适的打包方式）
 python build.py
 ```
 
-#### 方法2：使用uv创建虚拟环境打包（推荐）
-```bash
-# 使用uv创建虚拟环境并打包应用
-python build_with_uv.py
-```
+#### 方法2：使用Shell脚本打包（推荐）
 
-#### 方法3：使用Shell脚本打包（最简单）
+**macOS/Linux:**
 ```bash
-# 在macOS/Linux上使用build.sh脚本
+# 使用build.sh脚本，自动构建App并创建DMG安装包
 ./build.sh
 ```
 
-在Windows上，可以使用PowerShell运行类似的脚本：
+**Windows:**
 ```powershell
-# 在Windows上使用build.bat脚本
+# 使用build.bat脚本，自动构建应用并创建ZIP压缩包
 .\build.bat
 ```
 
-所有这些方法都会：
+### 构建结果
+
+**macOS:**
+- `dist/OllamaProxy.app` - macOS应用程序
+- `dist/OllamaProxy.dmg` - DMG安装包（自动生成）
+
+**Windows:**
+- `dist/OllamaProxy/` - Windows应用程序目录
+- `dist/OllamaProxy.zip` - ZIP压缩包（自动生成）
+
+### 构建特性
+
+所有构建方法都会：
 1. 自动检测并安装uv（如果尚未安装）
 2. 创建或使用现有的虚拟环境
 3. 在虚拟环境中安装所有依赖
 4. 使用PyInstaller构建独立的应用程序
+5. **macOS**: 自动创建美观的DMG安装包
+6. **Windows**: 自动创建便于分发的ZIP压缩包
 
 ## API使用示例
 

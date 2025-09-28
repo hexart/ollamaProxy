@@ -80,6 +80,70 @@ build_app() {
     print_info "应用构建完成"
 }
 
+# 创建DMG安装包（仅macOS）
+create_dmg() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        print_info "正在创建DMG安装包..."
+        
+        # 检查create-dmg是否已安装
+        if ! command -v create-dmg &> /dev/null; then
+            print_warning "未检测到create-dmg工具"
+            print_info "正在安装create-dmg..."
+            if command -v brew &> /dev/null; then
+                brew install create-dmg
+                if [ $? -eq 0 ]; then
+                    print_info "create-dmg安装完成"
+                else
+                    print_error "create-dmg安装失败"
+                    return 1
+                fi
+            else
+                print_error "未检测到Homebrew，无法自动安装create-dmg"
+                print_info "请手动安装: brew install create-dmg"
+                return 1
+            fi
+        fi
+        
+        # 创建DMG文件
+        if [ -d "dist/OllamaProxy.app" ]; then
+            print_info "检测到OllamaProxy.app，开始创建DMG..."
+            
+            # 删除旧的DMG文件（如果存在）
+            if [ -f "dist/OllamaProxy.dmg" ]; then
+                rm -f "dist/OllamaProxy.dmg"
+                print_info "已删除旧的DMG文件"
+            fi
+            
+            # 使用更简单的参数创建DMG
+            create-dmg \
+                --volname "OllamaProxy" \
+                --window-size 600 400 \
+                --icon-size 80 \
+                --app-drop-link 450 200 \
+                --no-internet-enable \
+                "dist/OllamaProxy.dmg" \
+                "dist/OllamaProxy.app" 2>/dev/null
+            
+            # 检查DMG是否创建成功
+            if [ -f "dist/OllamaProxy.dmg" ]; then
+                print_info "DMG创建完成: dist/OllamaProxy.dmg"
+                # 显示文件大小
+                DMG_SIZE=$(ls -lah dist/OllamaProxy.dmg | awk '{print $5}')
+                print_info "DMG文件大小: $DMG_SIZE"
+                return 0
+            else
+                print_error "DMG创建失败"
+                return 1
+            fi
+        else
+            print_error "未找到OllamaProxy.app文件"
+            print_info "当前dist目录内容:"
+            ls -la dist/ || print_info "dist目录不存在"
+            return 1
+        fi
+    fi
+}
+
 # 主函数
 main() {
     print_info "Ollama Proxy 构建脚本"
@@ -114,10 +178,20 @@ main() {
     # 构建应用
     build_app
     
-    print_info "🎉 构建完成!"
+    # 如果是macOS，创建DMG安装包
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        print_info "应用位置: dist/OllamaProxy.app"
+        create_dmg
+        if [ $? -eq 0 ]; then
+            print_info "🎉 构建完成！"
+            print_info "应用位置: dist/OllamaProxy.app"
+            print_info "DMG安装包: dist/OllamaProxy.dmg"
+        else
+            print_warning "DMG创建失败，但应用构建成功"
+            print_info "🎉 构建完成！"
+            print_info "应用位置: dist/OllamaProxy.app"
+        fi
     else
+        print_info "🎉 构建完成！"
         print_info "应用位置: dist/OllamaProxy/"
     fi
 }
