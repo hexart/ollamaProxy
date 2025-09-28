@@ -1,6 +1,6 @@
 @echo off
 REM Ollama Proxy Build Script (Windows)
-REM Using uv to create virtual environment and build application
+REM Automatically creates virtual environment, activates it, and builds the application
 
 echo [INFO] Ollama Proxy Build Script (Windows)
 echo ========================
@@ -10,67 +10,64 @@ set SCRIPT_DIR=%~dp0
 echo [INFO] Working directory: %SCRIPT_DIR%
 cd /d "%SCRIPT_DIR%"
 
-REM Check if uv is installed, install if not
-python -m uv --version >nul 2>nul
-if %errorlevel% neq 0 (
-    echo [WARNING] uv not detected, installing...
-    python -m pip install uv
-    if %errorlevel% neq 0 (
-        echo [ERROR] Failed to install uv, please ensure Python and pip are installed
-        exit /b 1
-    )
-    echo [INFO] uv installation completed
-)
-
-REM Check if uv is available
-python -m uv --version >nul 2>nul
-if %errorlevel% neq 0 (
-    echo [ERROR] uv is not available, please add it to system PATH manually
-    exit /b 1
-)
-
-echo [INFO] Detected uv version:
-for /f "delims=" %%i in ('python -m uv --version') do echo [INFO] %%i
-
-REM Check if virtual environment exists
-if exist ".venv" (
-    echo [INFO] Existing virtual environment detected
-) else (
-    echo [INFO] No virtual environment detected, creating...
-    python -m uv venv .venv
+REM Check if virtual environment exists, if not create it
+if not exist ".venv" (
+    echo [INFO] Creating virtual environment...
+    python -m venv .venv
     if %errorlevel% neq 0 (
         echo [ERROR] Failed to create virtual environment
         exit /b 1
     )
     echo [INFO] Virtual environment created
+) else (
+    echo [INFO] Virtual environment already exists
 )
 
-REM Install requirements in virtual environment using system uv
-echo [INFO] Installing requirements...
-python -m uv pip install -r requirements.txt --python .venv\Scripts\python.exe
+REM Activate virtual environment
+echo [INFO] Activating virtual environment...
+call .venv\Scripts\activate.bat
 if %errorlevel% neq 0 (
-    echo [ERROR] Failed to install requirements
+    echo [ERROR] Failed to activate virtual environment
     exit /b 1
 )
-echo [INFO] Requirements installation completed
 
-REM Install build dependencies using system uv
+REM Install requirements
+echo [INFO] Installing requirements from requirements.txt...
+if exist "requirements.txt" (
+    pip install -r requirements.txt
+    if %errorlevel% neq 0 (
+        echo [ERROR] Failed to install requirements
+        exit /b 1
+    )
+    echo [INFO] Requirements installed
+) else (
+    echo [WARNING] requirements.txt not found, skipping...
+)
+
+REM Install build dependencies
 echo [INFO] Installing build dependencies...
-python -m uv pip install pyinstaller pystray Pillow uvicorn[standard] fastapi httpx --python .venv\Scripts\python.exe
+pip install pyinstaller pystray Pillow uvicorn[standard] fastapi httpx
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to install build dependencies
     exit /b 1
 )
-echo [INFO] Build dependencies installation completed
+echo [INFO] Build dependencies installed
 
-REM Build application using uv run with system python
-echo [INFO] Building application with uv run...
-python -m uv run --python .venv\Scripts\python.exe build.py
+REM Kill any running processes that might be locking the dist directory
+echo [INFO] Checking for processes that might be locking the dist directory...
+taskkill /f /im OllamaProxy.exe >nul 2>nul
+
+REM Wait a moment for processes to terminate
+timeout /t 2 /nobreak >nul
+
+REM Build application with pyinstaller
+echo [INFO] Building application with pyinstaller...
+python -m PyInstaller --noconfirm --name=OllamaProxy --windowed --icon=resources/wintray.ico --add-data="resources;resources" --hidden-import=pystray --hidden-import=PIL --add-data="main.py;." --add-data="config.py;." --add-data="config.json;." --add-data="resources/wintray.ico;." app.py
 if %errorlevel% neq 0 (
     echo [ERROR] Application build failed
     exit /b 1
 )
-echo [INFO] Application build completed
+echo [INFO] Application built successfully
 
 echo [INFO] Build completed successfully!
 echo [INFO] Application location: dist\OllamaProxy\

@@ -7,6 +7,7 @@ import os
 import sys
 import subprocess
 import platform
+import shutil
 
 def install_build_dependencies():
     """Install build dependencies - this should be done by the build script"""
@@ -17,6 +18,12 @@ def build_app():
     """Build application"""
     print("Building application...")
     try:
+        # Remove existing spec file to allow PyInstaller to generate a new one
+        spec_file = "OllamaProxy.spec"
+        if os.path.exists(spec_file):
+            os.remove(spec_file)
+            print("Removed existing spec file to allow regeneration")
+        
         # Build command using pyinstaller directly (not as module)
         build_cmd = [
             "pyinstaller",
@@ -38,8 +45,7 @@ def build_app():
                 "--add-data=config.json:.",
                 "--add-data=resources/menuicon_16.png:.",
                 "--add-data=resources/menuicon_32.png:.",
-                "--osx-bundle-identifier", "com.ollama.proxy",
-                "--target-architecture", "arm64"
+                "--osx-bundle-identifier", "com.ollama.proxy"
             ])
         else:  # Windows
             build_cmd.extend([
