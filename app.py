@@ -63,8 +63,7 @@ class CrossPlatformApp:
                 with open(config_path, 'w', encoding='utf-8') as f:
                     json.dump(config, f, indent=2)
                 return 8000
-        except Exception as e:
-            print(f"加载配置文件出错: {e}")
+        except Exception:
             return 8000
 
     def save_port_config(self, new_port):
@@ -91,8 +90,7 @@ class CrossPlatformApp:
 
             self.port = new_port
             return True
-        except Exception as e:
-            print(f"保存配置文件出错: {e}")
+        except Exception:
             return False
 
     def auto_start_server(self):
@@ -109,7 +107,6 @@ class CrossPlatformApp:
                 time.sleep(1)
                 if self.is_server_running():
                     self.is_running = True
-                    print("服务已自动启动")
                     # 更新菜单状态
                     if self.icon:
                         self.update_menu()
@@ -117,8 +114,8 @@ class CrossPlatformApp:
 
             # 如果多次尝试后仍未启动
             print("服务将在您手动启动时运行")
-        except Exception as e:
-            print(f"自动启动服务时出错: {str(e)}")
+        except Exception:
+            pass
 
     def is_server_running(self):
         """检查服务是否正在运行"""
@@ -132,7 +129,6 @@ class CrossPlatformApp:
     def start_server(self, icon=None, item=None):
         """启动FastAPI服务"""
         if self.is_running:
-            print("服务已在运行中")
             return
 
         try:
@@ -147,15 +143,14 @@ class CrossPlatformApp:
             # 检查服务是否成功启动
             if self.is_server_running():
                 self.is_running = True
-                print(f"服务已在端口 {self.port} 上运行")
                 # 更新菜单状态
                 if icon:
                     self.update_menu(icon)
             else:
-                print("无法启动服务，请检查日志")
+                print("无法启动服务")
 
-        except Exception as e:
-            print(f"启动服务时出错: {str(e)}")
+        except Exception:
+            pass
 
     def run_server(self):
         """在后台线程中运行服务器"""
@@ -163,17 +158,32 @@ class CrossPlatformApp:
             # 导入并运行FastAPI应用
             import uvicorn
             from main import app
-            config = uvicorn.Config(
-                app,
-                host="0.0.0.0",
-                port=self.port,
-                log_level="info",
-                access_log=False
-            )
+            
+            # 修复Windows打包应用中的日志配置问题
+            # 当sys.stdout或sys.stderr为None时，uvicorn会出错
+            if getattr(sys, 'frozen', False) and (sys.stdout is None or sys.stderr is None):
+                # 在打包的Windows应用中禁用访问日志以避免isatty错误
+                config = uvicorn.Config(
+                    app,
+                    host="127.0.0.1",  # 改为127.0.0.1以提高安全性
+                    port=self.port,
+                    log_level="info",
+                    access_log=False,  # 禁用访问日志
+                    use_colors=False    # 禁用颜色输出
+                )
+            else:
+                config = uvicorn.Config(
+                    app,
+                    host="127.0.0.1",
+                    port=self.port,
+                    log_level="info",
+                    access_log=False
+                )
+            
             self.server_instance = uvicorn.Server(config)
             self.server_instance.run()
-        except Exception as e:
-            print(f"服务器运行错误: {e}")
+        except Exception:
+            pass
 
     def stop_server(self, icon=None, item=None):
         """停止FastAPI服务"""
@@ -187,14 +197,13 @@ class CrossPlatformApp:
 
             # 更新状态
             self.is_running = False
-            print("服务已停止")
             
             # 更新菜单状态
             if icon:
                 self.update_menu(icon)
 
-        except Exception as e:
-            print(f"停止服务时出错: {str(e)}")
+        except Exception:
+            pass
 
     def set_port(self, icon=None, item=None):
         """设置端口"""
@@ -230,9 +239,6 @@ class CrossPlatformApp:
                     if 1024 <= new_port <= 65535:
                         if self.save_port_config(new_port):
                             self.port = new_port
-                            print(f"端口已设置为: {new_port}\n重启服务以应用更改。")
-                        else:
-                            print("保存端口配置失败。")
                     else:
                         print("端口必须在1024-65535之间。")
                 except ValueError:
@@ -249,227 +255,111 @@ class CrossPlatformApp:
                 root = tk.Tk()
                 root.withdraw()  # 隐藏主窗口
                 
-                new_port = simpledialog.askstring(
+                new_port = simpledialog.askinteger(
                     "Ollama Proxy - 端口设置",
                     f"当前端口: {current_port}\n请输入新端口 (1024-65535):\n注意：修改端口后需要重启服务才能生效。",
-                    initialvalue=str(current_port)
+                    initialvalue=current_port,
+                    minvalue=1024,
+                    maxvalue=65535
                 )
+                
+                if new_port is not None:
+                    if self.save_port_config(new_port):
+                        self.port = new_port
                 
                 root.destroy()
                 
-                if new_port is not None:
-                    try:
-                        new_port = int(new_port)
-                        if 1024 <= new_port <= 65535:
-                            if self.save_port_config(new_port):
-                                self.port = new_port
-                                print(f"端口已设置为: {new_port}\n重启服务以应用更改。")
-                            else:
-                                print("保存端口配置失败。")
-                        else:
-                            print("端口必须在1024-65535之间。")
-                    except ValueError:
-                        print("请输入有效的端口号。")
-            except Exception as e:
-                print(f"创建端口输入窗口失败: {e}")
+            except Exception:
+                pass
 
     def update_menu(self, icon=None):
-        """更新菜单状态"""
+        """更新托盘菜单"""
         if icon is None:
             icon = self.icon
             
         if icon:
-            # 更新菜单项的启用状态
-            icon.menu = self.create_menu()
-
-    def create_menu(self):
-        """创建菜单"""
-        import pystray
-        from pystray import MenuItem as item
-        
-        # 根据服务状态设置菜单项的启用状态
-        start_enabled = not self.is_running
-        stop_enabled = self.is_running
-        
-        return pystray.Menu(
-            item("启动服务", self.start_server, enabled=start_enabled),
-            item("停止服务", self.stop_server, enabled=stop_enabled),
-            pystray.Menu.SEPARATOR,
-            item("端口设置", self.set_port),
-            pystray.Menu.SEPARATOR,
-            item("退出", self.quit_app)
-        )
+            import pystray
+            from PIL import Image, ImageDraw
+            
+            # 创建菜单项
+            menu_items = [
+                pystray.MenuItem(
+                    f"服务状态: {'运行中' if self.is_running else '已停止'}",
+                    lambda icon, item: None,
+                    enabled=False
+                ),
+                pystray.MenuItem("启动服务", self.start_server,
+                               enabled=not self.is_running),
+                pystray.MenuItem("停止服务", self.stop_server,
+                               enabled=self.is_running),
+                pystray.MenuItem("设置端口", self.set_port),
+                pystray.MenuItem("退出", self.quit_app)
+            ]
+            
+            icon.menu = pystray.Menu(*menu_items)
 
     def quit_app(self, icon=None, item=None):
         """退出应用"""
         try:
-            # 停止服务
-            if self.is_running:
-                self.stop_server()
+            # 停止服务器
+            if self.server_instance:
+                self.server_instance.should_exit = True
 
-            # 退出应用
-            if icon:
-                icon.stop()
-        except Exception as e:
-            print(f"退出应用时出错: {e}")
-            if icon:
-                icon.stop()
+            # 停止托盘图标
+            if self.icon:
+                self.icon.stop()
+                
+        except Exception:
+            pass
 
-    def create_image(self):
-        """创建系统托盘图标"""
-        try:
-            from PIL import Image, ImageDraw
-            import platform
+def create_image():
+    """创建托盘图标"""
+    try:
+        # 尝试从文件加载图标
+        if platform.system() == "Darwin":  # macOS
+            icon_path = os.path.join(os.path.dirname(
+                os.path.abspath(__file__)), "resources", "menuicon_32.png")
+        else:  # Windows/Linux
+            icon_path = os.path.join(os.path.dirname(
+                os.path.abspath(__file__)), "resources", "wintray.ico")
             
-            # macOS菜单栏图标处理
-            if platform.system() == "Darwin":
-                # 优先尝试加载PNG文件
-                png_16_path = None
-                png_32_path = None
-                
-                if getattr(sys, 'frozen', False):
-                    # 打包后的应用
-                    application_path = os.path.dirname(sys.executable)
-                    resources_path = os.path.join(
-                        os.path.dirname(application_path), 'Resources')
-                    png_16_path = os.path.join(resources_path, 'menuicon_16.png')
-                    png_32_path = os.path.join(resources_path, 'menuicon_32.png')
-                else:
-                    # 开发环境
-                    script_dir = os.path.dirname(os.path.abspath(__file__))
-                    resources_dir = os.path.join(script_dir, 'resources')
-                    png_16_path = os.path.join(resources_dir, 'menuicon_16.png')
-                    png_32_path = os.path.join(resources_dir, 'menuicon_32.png')
-                
-                # 如果16x16 PNG文件存在，使用它作为基础图标
-                if png_16_path and os.path.exists(png_16_path):
-                    print(f"加载16x16 PNG菜单栏图标: {png_16_path}")
-                    # 加载16x16图标
-                    base_image = Image.open(png_16_path)
-                    
-                    # 如果32x32 PNG文件也存在，将其作为高分辨率版本
-                    if png_32_path and os.path.exists(png_32_path):
-                        print(f"加载32x32 PNG菜单栏图标: {png_32_path}")
-                        high_res_image = Image.open(png_32_path)
-                        
-                        # 创建一个支持多分辨率的图标
-                        # 在macOS上，我们可以创建一个包含多个尺寸的图像
-                        # 但pystray目前不直接支持多分辨率图标
-                        # 所以我们使用16x16作为主图标，它在Retina屏幕上会自动缩放
-                        return base_image
-                    else:
-                        # 只有16x16图标可用
-                        return base_image
-                
-            # 如果不是macOS或PNG/SVG都不存在，使用原有逻辑
-            return self.load_default_icon()
-            
-        except Exception as e:
-            print(f"创建图标失败: {e}")
-            return None
+        if os.path.exists(icon_path):
+            from PIL import Image
+            return Image.open(icon_path)
+    except Exception:
+        pass
+    
+    # 如果无法加载图标文件，则创建一个简单的图标
+    from PIL import Image, ImageDraw
+    width, height = 64, 64
+    image = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+    dc = ImageDraw.Draw(image)
+    dc.rectangle((0, 0, width, height), fill=(0, 128, 255, 255))
+    dc.text((width//4, height//3), "OP", fill=(255, 255, 255, 255))
+    return image
 
-    def load_default_icon(self):
-        """加载默认图标文件"""
-        try:
-            # 检查是否是打包后的应用
-            if getattr(sys, 'frozen', False):
-                # 打包后的应用
-                if platform.system() == "Darwin":  # macOS
-                    # 在macOS app bundle中，资源在Contents/Resources目录
-                    application_path = os.path.dirname(sys.executable)
-                    resources_path = os.path.join(
-                        os.path.dirname(application_path), 'Resources')
-                    tray_icon_path = os.path.join(resources_path, 'menuicon_32.png')
-                else:  # Windows
-                    tray_icon_path = os.path.join(os.getcwd(), 'wintray.ico')
-                
-                # 检查托盘图标文件是否存在
-                if os.path.exists(tray_icon_path):
-                    print(f"加载打包应用中的托盘图标: {tray_icon_path}")
-                    # 使用PIL加载图标文件
-                    from PIL import Image
-                    return Image.open(tray_icon_path)
-                else:
-                    print(f"托盘图标文件不存在: {tray_icon_path}")
-            else:
-                # 开发环境
-                if platform.system() == "Darwin":  # macOS
-                    tray_icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', 'menuicon_32.png')
-                else:  # Windows
-                    tray_icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', 'wintray.ico')
-                
-                # 检查托盘图标文件是否存在
-                if os.path.exists(tray_icon_path):
-                    print(f"加载开发环境中的托盘图标: {tray_icon_path}")
-                    # 使用PIL加载图标文件
-                    from PIL import Image
-                    return Image.open(tray_icon_path)
-                else:
-                    print(f"托盘图标文件不存在: {tray_icon_path}")
-        except Exception as e:
-            print(f"加载托盘图标失败: {e}")
+def main():
+    """主函数"""
+    # 创建应用实例
+    app = CrossPlatformApp()
+    
+    # 创建托盘图标
+    try:
+        import pystray
+        image = create_image()
+        icon = pystray.Icon("Ollama Proxy", image, menu=pystray.Menu(
+            pystray.MenuItem("启动中...", lambda icon, item: None, enabled=False)
+        ))
         
-        return None
-
-    def run(self):
-        """运行系统托盘应用"""
-        # 设置工作目录为脚本所在目录
-        try:
-            # 如果是打包后的应用，使用资源目录
-            if getattr(sys, 'frozen', False):
-                # 运行在打包后的环境
-                application_path = os.path.dirname(sys.executable)
-                if platform.system() == "Darwin":  # macOS
-                    # 在macOS app bundle中，资源在Contents/Resources目录
-                    if sys.platform == 'darwin':
-                        resources_path = os.path.join(
-                            os.path.dirname(application_path), 'Resources')
-                        if os.path.exists(resources_path):
-                            os.chdir(resources_path)
-                        else:
-                            os.chdir(application_path)
-                    else:
-                        os.chdir(application_path)
-                else:  # Windows
-                    os.chdir(application_path)
-            else:
-                # 运行在开发环境
-                os.chdir(os.path.dirname(os.path.abspath(__file__)))
-        except Exception as e:
-            print(f"设置工作目录失败: {e}")
-
-        # 创建菜单
-        try:
-            import pystray
-            from pystray import MenuItem as item
-            
-            # 创建图标
-            image = self.create_image()
-            if image is None:
-                print("警告: 无法加载托盘图标文件，使用默认图标")
-                # 如果无法创建图像，使用默认图像
-                from PIL import Image, ImageDraw
-                image = Image.new('RGB', (64, 64), (255, 255, 255))
-                dc = ImageDraw.Draw(image)
-                # 使用更明显的默认图标
-                dc.text((10, 10), "🦙", fill=(0, 0, 0))
-                dc.rectangle((5, 5, 59, 59), outline=(0, 0, 0), width=2)
-            else:
-                print("成功加载托盘图标文件")
-            
-            # 创建系统托盘图标
-            self.icon = pystray.Icon("Ollama Proxy", image, "Ollama Proxy", self.create_menu())
-            self.icon.run()
-        except ImportError:
-            print("缺少必要的依赖库，请安装 pystray")
-            sys.exit(1)
+        app.icon = icon
+        app.update_menu()
+        
+        icon.run()
+        
+    except Exception:
+        # 如果无法创建托盘图标，直接运行服务器
+        if HAS_LOCAL_SERVER:
+            app.run_server()
 
 if __name__ == "__main__":
-    # 启动应用
-    try:
-        app = CrossPlatformApp()
-        app.run()
-    except Exception as e:
-        print(f"应用启动失败: {e}")
-        import traceback
-        traceback.print_exc()
+    main()

@@ -1,73 +1,78 @@
 @echo off
-REM Ollama Proxy 构建脚本 (Windows版本)
-REM 使用uv创建虚拟环境并构建应用
+REM Ollama Proxy Build Script (Windows)
+REM Using uv to create virtual environment and build application
 
-SETLOCAL EnableDelayedExpansion
-
-echo [INFO] Ollama Proxy 构建脚本 (Windows版本)
+echo [INFO] Ollama Proxy Build Script (Windows)
 echo ========================
 
-REM 获取脚本所在目录
+REM Get script directory
 set SCRIPT_DIR=%~dp0
-echo [INFO] 工作目录: %SCRIPT_DIR%
+echo [INFO] Working directory: %SCRIPT_DIR%
 cd /d "%SCRIPT_DIR%"
 
-REM 检查uv是否已安装
-where uv >nul 2>nul
-if %errorlevel% equ 0 (
-    for /f "delims=" %%i in ('uv --version') do set UV_VERSION=%%i
-    echo [INFO] 检测到uv: %UV_VERSION%
-) else (
-    echo [WARNING] 未检测到uv，正在安装...
+REM Check if uv is installed, install if not
+python -m uv --version >nul 2>nul
+if %errorlevel% neq 0 (
+    echo [WARNING] uv not detected, installing...
     python -m pip install uv
-    if !errorlevel! neq 0 (
-        echo [ERROR] uv安装失败，请确保已安装Python和pip
+    if %errorlevel% neq 0 (
+        echo [ERROR] Failed to install uv, please ensure Python and pip are installed
         exit /b 1
     )
-    echo [INFO] uv安装完成
+    echo [INFO] uv installation completed
 )
 
-REM 检查虚拟环境是否存在
+REM Check if uv is available
+python -m uv --version >nul 2>nul
+if %errorlevel% neq 0 (
+    echo [ERROR] uv is not available, please add it to system PATH manually
+    exit /b 1
+)
+
+echo [INFO] Detected uv version:
+for /f "delims=" %%i in ('python -m uv --version') do echo [INFO] %%i
+
+REM Check if virtual environment exists
 if exist ".venv" (
-    echo [INFO] 检测到现有虚拟环境
+    echo [INFO] Existing virtual environment detected
 ) else (
-    echo [INFO] 未检测到虚拟环境，正在创建...
-    uv venv .venv
-    if !errorlevel! neq 0 (
-        echo [ERROR] 虚拟环境创建失败
+    echo [INFO] No virtual environment detected, creating...
+    python -m uv venv .venv
+    if %errorlevel% neq 0 (
+        echo [ERROR] Failed to create virtual environment
         exit /b 1
     )
-    echo [INFO] 虚拟环境创建完成
+    echo [INFO] Virtual environment created
 )
 
-REM 激活虚拟环境
-echo [INFO] 正在激活虚拟环境...
-call .venv\Scripts\activate.bat
-if !errorlevel! neq 0 (
-    echo [ERROR] 虚拟环境激活失败
+REM Install requirements in virtual environment using system uv
+echo [INFO] Installing requirements...
+python -m uv pip install -r requirements.txt --python .venv\Scripts\python.exe
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to install requirements
     exit /b 1
 )
-echo [INFO] 虚拟环境已激活: %PYTHON_PATH%
+echo [INFO] Requirements installation completed
 
-REM 安装依赖
-echo [INFO] 正在安装依赖...
-uv pip install -r requirements.txt
-if !errorlevel! neq 0 (
-    echo [ERROR] 依赖安装失败
+REM Install build dependencies using system uv
+echo [INFO] Installing build dependencies...
+python -m uv pip install pyinstaller pystray Pillow uvicorn[standard] fastapi httpx --python .venv\Scripts\python.exe
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to install build dependencies
     exit /b 1
 )
-echo [INFO] 依赖安装完成
+echo [INFO] Build dependencies installation completed
 
-REM 构建应用
-echo [INFO] 正在构建应用...
-python build.py
-if !errorlevel! neq 0 (
-    echo [ERROR] 应用构建失败
+REM Build application using uv run with system python
+echo [INFO] Building application with uv run...
+python -m uv run --python .venv\Scripts\python.exe build.py
+if %errorlevel% neq 0 (
+    echo [ERROR] Application build failed
     exit /b 1
 )
-echo [INFO] 应用构建完成
+echo [INFO] Application build completed
 
-echo [INFO] 🎉 构建完成!
-echo [INFO] 应用位置: dist\OllamaProxy\
+echo [INFO] Build completed successfully!
+echo [INFO] Application location: dist\OllamaProxy\
 
 pause

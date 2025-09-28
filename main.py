@@ -14,6 +14,8 @@ import time
 import uuid
 from typing import List, Dict, Optional
 from pydantic import BaseModel
+import os
+import sys
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -38,6 +40,31 @@ app.add_middleware(
 OLLAMA_BASE_URL = "http://localhost:11434"
 TIMEOUT = 60.0
 
+# 从环境变量或配置文件加载设置
+def load_config():
+    global OLLAMA_BASE_URL, TIMEOUT
+    
+    # 尝试从配置文件加载
+    config_file = 'config.json'
+    if getattr(sys, 'frozen', False):
+        # 打包后的应用
+        config_file = os.path.join(os.getcwd(), 'config.json')
+    else:
+        # 开发环境
+        config_file = os.path.join(os.path.dirname(__file__), 'config.json')
+    
+    try:
+        if os.path.exists(config_file):
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                OLLAMA_BASE_URL = config.get('ollama_base_url', OLLAMA_BASE_URL)
+                TIMEOUT = config.get('timeout', TIMEOUT)
+    except Exception:
+        pass
+
+# 加载配置
+load_config()
+
 # Pydantic 模型定义
 
 
@@ -49,310 +76,320 @@ class Message(BaseModel):
 class ChatCompletionRequest(BaseModel):
     model: str
     messages: List[Message]
-    stream: Optional[bool] = False
     temperature: Optional[float] = 0.7
-    max_tokens: Optional[int] = 1000
-    top_p: Optional[float] = 1.0
-    frequency_penalty: Optional[float] = 0.0
-    presence_penalty: Optional[float] = 0.0
+    max_tokens: Optional[int] = None
+    stream: Optional[bool] = False
 
 
 class CompletionRequest(BaseModel):
     model: str
     prompt: str
-    stream: Optional[bool] = False
     temperature: Optional[float] = 0.7
-    max_tokens: Optional[int] = 1000
-
-# 工具函数
-
-
-def convert_messages_to_ollama_prompt(messages: List[Message]) -> str:
-    """将 OpenAI 格式的消息转换为 Ollama prompt"""
-    prompt = ""
-
-    for message in messages:
-        if message.role == "system":
-            prompt += f"System: {message.content}\n\n"
-        elif message.role == "user":
-            prompt += f"Human: {message.content}\n\n"
-        elif message.role == "assistant":
-            prompt += f"Assistant: {message.content}\n\n"
-
-    # 确保以 Assistant: 结尾以触发响应
-    if not prompt.endswith("Assistant:"):
-        prompt += "Assistant:"
-
-    return prompt
-
-
-def create_chat_completion_response(content: str, model: str, finish_reason: str = "stop",
-                                    usage: Optional[Dict] = None) -> Dict:
-    """创建 OpenAI 格式的聊天响应"""
-    return {
-        "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
-        "object": "chat.completion",
-        "created": int(time.time()),
-        "model": model,
-        "choices": [{
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": content
-            },
-            "finish_reason": finish_reason
-        }],
-        "usage": usage or {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0
-        }
-    }
-
-
-def create_stream_chunk(content: str, model: str, finish_reason: Optional[str] = None) -> str:
-    """创建 OpenAI 格式的流式响应块"""
-    chunk = {
-        "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
-        "object": "chat.completion.chunk",
-        "created": int(time.time()),
-        "model": model,
-        "choices": [{
-            "index": 0,
-            "delta": {"content": content} if content else {},
-            "finish_reason": finish_reason
-        }]
-    }
-    return f"data: {json.dumps(chunk)}\n\n"
-
-# API 端点
+    max_tokens: Optional[int] = None
+    stream: Optional[bool] = False
 
 
 @app.get("/v1/models")
-@app.get("/models")  # 兼容不带 v1 的路径
+@app.get("/models")
 async def list_models():
-    """列出可用模型 - OpenAI 格式"""
+    """列出所有可用模型"""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=10.0)
-
-            if response.status_code != 200:
-                raise HTTPException(status_code=response.status_code,
-                                    detail="Failed to fetch models from Ollama")
-
-            ollama_models = response.json().get("models", [])
-
-            # 转换为 OpenAI 格式
-            openai_models = []
-            for model in ollama_models:
-                openai_models.append({
-                    "id": model["name"],
-                    "object": "model",
-                    "created": int(time.time()),
-                    "owned_by": "ollama"
-                })
-
-            return {
-                "object": "list",
-                "data": openai_models
-            }
-
-    except httpx.RequestError as e:
-        logger.error(f"Failed to connect to Ollama: {e}")
-        raise HTTPException(
-            status_code=503, detail=f"Ollama service unavailable: {str(e)}")
-
-
-@app.post("/v1/chat/completions")
-@app.post("/chat/completions")  # 兼容不带 v1 的路径
-async def chat_completions(request: ChatCompletionRequest):
-    """聊天完成 - OpenAI 格式"""
-    try:
-        # 转换消息为 Ollama prompt
-        prompt = convert_messages_to_ollama_prompt(request.messages)
-
-        # 准备 Ollama 请求
-        ollama_payload = {
-            "model": request.model,
-            "prompt": prompt,
-            "stream": request.stream,
-            "options": {
-                "temperature": request.temperature,
-                "num_predict": request.max_tokens,
-                "top_p": request.top_p,
-            }
-        }
-
-        if request.stream:
-            # 流式响应
-            async def generate_stream():
-                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                    try:
-                        async with client.stream(
-                            "POST",
-                            f"{OLLAMA_BASE_URL}/api/generate",
-                            json=ollama_payload
-                        ) as response:
-                            if response.status_code != 200:
-                                error_msg = await response.aread()
-                                yield create_stream_chunk(
-                                    f"Error: {error_msg.decode()}",
-                                    request.model,
-                                    "error"
-                                )
-                                return
-
-                            async for line in response.aiter_lines():
-                                if line:
-                                    try:
-                                        data = json.loads(line)
-                                        if data.get("response"):
-                                            yield create_stream_chunk(
-                                                data["response"],
-                                                request.model
-                                            )
-                                        if data.get("done"):
-                                            yield create_stream_chunk(
-                                                "",
-                                                request.model,
-                                                "stop"
-                                            )
-                                            yield "data: [DONE]\n\n"
-                                            return
-                                    except json.JSONDecodeError:
-                                        continue
-                    except Exception as e:
-                        logger.error(f"Stream error: {e}")
-                        yield create_stream_chunk(f"Error: {str(e)}", request.model, "error")
-
-            return StreamingResponse(
-                generate_stream(),
-                media_type="text/event-stream",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "Access-Control-Allow-Origin": "*",
-                }
+            response = await client.get(
+                f"{OLLAMA_BASE_URL}/api/tags",
+                timeout=TIMEOUT
             )
-        else:
-            # 非流式响应
-            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                response = await client.post(
-                    f"{OLLAMA_BASE_URL}/api/generate",
-                    json=ollama_payload
-                )
+            response.raise_for_status()
+            ollama_models = response.json()
 
-                if response.status_code != 200:
-                    raise HTTPException(status_code=response.status_code,
-                                        detail="Failed to generate response")
+            # 转换为OpenAI格式
+            openai_models = {
+                "object": "list",
+                "data": [
+                    {
+                        "id": tag["name"],
+                        "object": "model",
+                        "created": int(time.time()),
+                        "owned_by": "ollama"
+                    }
+                    for tag in ollama_models.get("models", [])
+                ]
+            }
+            return openai_models
 
-                ollama_response = response.json()
-
-                # 转换为 OpenAI 格式
-                usage = {
-                    "prompt_tokens": ollama_response.get("prompt_eval_count", 0),
-                    "completion_tokens": ollama_response.get("eval_count", 0),
-                    "total_tokens": (ollama_response.get("prompt_eval_count", 0) +
-                                     ollama_response.get("eval_count", 0))
-                }
-
-                return create_chat_completion_response(
-                    content=ollama_response.get("response", ""),
-                    model=request.model,
-                    usage=usage
-                )
-
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Ollama request timeout")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Ollama request failed: {str(e)}")
     except Exception as e:
-        logger.error(f"Chat completion error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/v1/completions")
-@app.post("/completions")  # 兼容不带 v1 的路径
-async def completions(request: CompletionRequest):
-    """文本完成 - OpenAI 格式"""
+@app.post("/v1/chat/completions")
+@app.post("/chat/completions")
+async def chat_completions(request: ChatCompletionRequest):
+    """聊天完成接口"""
     try:
-        ollama_payload = {
+        # 构造Ollama请求
+        ollama_request = {
             "model": request.model,
-            "prompt": request.prompt,
+            "messages": [
+                {
+                    "role": msg.role,
+                    "content": msg.content
+                }
+                for msg in request.messages
+            ],
             "stream": request.stream,
             "options": {
-                "temperature": request.temperature,
-                "num_predict": request.max_tokens
+                "temperature": request.temperature
             }
         }
 
+        if request.max_tokens:
+            ollama_request["options"]["num_predict"] = request.max_tokens
+
         if request.stream:
             # 流式响应
-            async def generate_stream():
-                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                    async with client.stream(
-                        "POST",
-                        f"{OLLAMA_BASE_URL}/api/generate",
-                        json=ollama_payload
-                    ) as response:
-                        async for line in response.aiter_lines():
-                            if line:
-                                try:
-                                    data = json.loads(line)
-                                    if data.get("response"):
-                                        chunk = {
-                                            "id": f"cmpl-{uuid.uuid4().hex[:8]}",
-                                            "object": "text_completion",
-                                            "created": int(time.time()),
-                                            "model": request.model,
-                                            "choices": [{
-                                                "text": data["response"],
-                                                "index": 0,
-                                                "finish_reason": None
-                                            }]
-                                        }
-                                        yield f"data: {json.dumps(chunk)}\n\n"
-                                    if data.get("done"):
-                                        yield "data: [DONE]\n\n"
-                                        return
-                                except json.JSONDecodeError:
-                                    continue
-
             return StreamingResponse(
-                generate_stream(),
+                stream_response(ollama_request),
                 media_type="text/event-stream"
             )
         else:
             # 非流式响应
-            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{OLLAMA_BASE_URL}/api/generate",
-                    json=ollama_payload
+                    f"{OLLAMA_BASE_URL}/api/chat",
+                    json=ollama_request,
+                    timeout=TIMEOUT
                 )
-
-                if response.status_code != 200:
-                    raise HTTPException(status_code=response.status_code,
-                                        detail="Failed to generate response")
-
+                response.raise_for_status()
                 ollama_response = response.json()
 
-                return {
-                    "id": f"cmpl-{uuid.uuid4().hex[:8]}",
+                # 转换为OpenAI格式
+                openai_response = {
+                    "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": request.model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": ollama_response.get("message", {}).get("content", "")
+                            },
+                            "finish_reason": "stop"
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0
+                    }
+                }
+                return openai_response
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Ollama request timeout")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Ollama request failed: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def stream_response(ollama_request: dict):
+    """流式响应处理"""
+    try:
+        async with httpx.AsyncClient() as client:
+            async with client.stream(
+                "POST",
+                f"{OLLAMA_BASE_URL}/api/chat",
+                json=ollama_request,
+                timeout=TIMEOUT
+            ) as response:
+                response.raise_for_status()
+                
+                openai_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
+                created_time = int(time.time())
+                
+                async for line in response.aiter_lines():
+                    if line.strip():
+                        try:
+                            ollama_data = json.loads(line)
+                            
+                            # 转换为OpenAI SSE格式
+                            if ollama_data.get("done"):
+                                # 结束标记
+                                openai_data = {
+                                    "id": openai_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created_time,
+                                    "model": ollama_request["model"],
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {},
+                                        "finish_reason": "stop"
+                                    }]
+                                }
+                            else:
+                                # 内容标记
+                                openai_data = {
+                                    "id": openai_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created_time,
+                                    "model": ollama_request["model"],
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {
+                                            "content": ollama_data.get("message", {}).get("content", "")
+                                        },
+                                        "finish_reason": None
+                                    }]
+                                }
+                            
+                            yield f"data: {json.dumps(openai_data)}\n\n"
+                            
+                        except json.JSONDecodeError:
+                            continue
+                
+                # 结束流
+                yield "data: [DONE]\n\n"
+                
+    except httpx.TimeoutException:
+        yield 'data: {"error": "Ollama request timeout"}\n\n'
+    except httpx.RequestError as e:
+        yield f'data: {{"error": "Ollama request failed: {str(e)}"}}\n\n'
+    except Exception as e:
+        yield f'data: {{"error": "{str(e)}"}}\n\n'
+
+
+@app.post("/v1/completions")
+@app.post("/completions")
+async def completions(request: CompletionRequest):
+    """文本补全接口"""
+    try:
+        # 构造Ollama请求
+        ollama_request = {
+            "model": request.model,
+            "prompt": request.prompt,
+            "stream": request.stream,
+            "options": {
+                "temperature": request.temperature
+            }
+        }
+
+        if request.max_tokens:
+            ollama_request["options"]["num_predict"] = request.max_tokens
+
+        if request.stream:
+            # 流式响应
+            return StreamingResponse(
+                stream_completions(ollama_request),
+                media_type="text/event-stream"
+            )
+        else:
+            # 非流式响应
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{OLLAMA_BASE_URL}/api/generate",
+                    json=ollama_request,
+                    timeout=TIMEOUT
+                )
+                response.raise_for_status()
+                ollama_response = response.json()
+
+                # 转换为OpenAI格式
+                openai_response = {
+                    "id": f"cmpl-{uuid.uuid4().hex[:12]}",
                     "object": "text_completion",
                     "created": int(time.time()),
                     "model": request.model,
-                    "choices": [{
-                        "text": ollama_response.get("response", ""),
-                        "index": 0,
-                        "finish_reason": "stop"
-                    }],
+                    "choices": [
+                        {
+                            "index": 0,
+                            "text": ollama_response.get("response", ""),
+                            "finish_reason": "stop"
+                        }
+                    ],
                     "usage": {
-                        "prompt_tokens": ollama_response.get("prompt_eval_count", 0),
-                        "completion_tokens": ollama_response.get("eval_count", 0),
-                        "total_tokens": (ollama_response.get("prompt_eval_count", 0) +
-                                         ollama_response.get("eval_count", 0))
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0
                     }
                 }
+                return openai_response
 
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Ollama request timeout")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Ollama request failed: {str(e)}")
     except Exception as e:
-        logger.error(f"Completion error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def stream_completions(ollama_request: dict):
+    """文本补全流式响应处理"""
+    try:
+        async with httpx.AsyncClient() as client:
+            async with client.stream(
+                "POST",
+                f"{OLLAMA_BASE_URL}/api/generate",
+                json=ollama_request,
+                timeout=TIMEOUT
+            ) as response:
+                response.raise_for_status()
+                
+                openai_id = f"cmpl-{uuid.uuid4().hex[:12]}"
+                created_time = int(time.time())
+                
+                async for line in response.aiter_lines():
+                    if line.strip():
+                        try:
+                            ollama_data = json.loads(line)
+                            
+                            # 转换为OpenAI SSE格式
+                            if ollama_data.get("done"):
+                                # 结束标记
+                                openai_data = {
+                                    "id": openai_id,
+                                    "object": "text_completion",
+                                    "created": created_time,
+                                    "model": ollama_request["model"],
+                                    "choices": [{
+                                        "index": 0,
+                                        "text": "",
+                                        "finish_reason": "stop"
+                                    }]
+                                }
+                            else:
+                                # 内容标记
+                                openai_data = {
+                                    "id": openai_id,
+                                    "object": "text_completion",
+                                    "created": created_time,
+                                    "model": ollama_request["model"],
+                                    "choices": [{
+                                        "index": 0,
+                                        "text": ollama_data.get("response", ""),
+                                        "finish_reason": None
+                                    }]
+                                }
+                            
+                            yield f"data: {json.dumps(openai_data)}\n\n"
+                            
+                        except json.JSONDecodeError:
+                            continue
+                
+                # 结束流
+                yield "data: [DONE]\n\n"
+                
+    except httpx.TimeoutException:
+        yield 'data: {"error": "Ollama request timeout"}\n\n'
+    except httpx.RequestError as e:
+        yield f'data: {{"error": "Ollama request failed: {str(e)}"}}\n\n'
+    except Exception as e:
+        yield f'data: {{"error": "{str(e)}"}}\n\n'
 
 
 @app.get("/")
@@ -383,13 +420,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Starting OpenAI-Compatible Ollama Proxy Server...")
-    logger.info(f"Proxying Ollama at: {OLLAMA_BASE_URL}")
-    logger.info("OpenAI endpoints available at:")
-    logger.info("  - /v1/models or /models")
-    logger.info("  - /v1/chat/completions or /chat/completions")
-    logger.info("  - /v1/completions or /completions")
-    logger.info("API文档可用在:")
-    logger.info("  - /docs (Swagger UI)")
-    logger.info("  - /redoc (ReDoc)")
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run(app, host="127.0.0.1", port=8000, reload=False)

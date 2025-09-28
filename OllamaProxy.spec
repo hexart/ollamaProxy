@@ -5,8 +5,8 @@ a = Analysis(
     ['app.py'],
     pathex=[],
     binaries=[],
-    datas=[('main.py', '.'), ('config.py', '.'), ('config.json', '.'), ('resources/menuicon_16.png', '.'), ('resources/menuicon_32.png', '.')],
-    hiddenimports=['pystray', 'PIL', 'fastapi', 'uvicorn', 'uvicorn.protocols.http.h11_impl', 'uvicorn.protocols.websockets.wsproto_impl', 'httpx', 'h11', 'click'],
+    datas=[('resources', 'resources'), ('main.py', '.'), ('config.py', '.'), ('config.json', '.'), ('resources/wintray.ico', '.')],
+    hiddenimports=['pystray', 'PIL'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -29,10 +29,10 @@ exe = EXE(
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
-    target_arch='arm64',
+    target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['resources/mac.icns'],
+    icon=['resources\\wintray.ico'],
 )
 coll = COLLECT(
     exe,
@@ -42,10 +42,4 @@ coll = COLLECT(
     upx=True,
     upx_exclude=[],
     name='OllamaProxy',
-)
-app = BUNDLE(
-    coll,
-    name='OllamaProxy.app',
-    icon='resources/mac.icns',
-    bundle_identifier='com.ollama.proxy',
 )
