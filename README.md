@@ -1,10 +1,10 @@
 # Ollama Proxy 客户端
 
-这是一个将Ollama API转换为OpenAI兼容格式的跨平台系统托盘应用，支持macOS和Windows系统。
+这是一个将Ollama API转换为OpenAI兼容格式的跨平台系统托盘应用，专为macOS和Windows系统设计。
 
 ## 功能特性
 
-- 跨平台支持（macOS和Windows）
+- macOS和Windows双平台支持
 - 在系统托盘中运行，不占用桌面空间
 - 自动启动Ollama代理服务
 - 支持OpenAI兼容的API接口
@@ -25,7 +25,7 @@
 
 ## 支持的平台
 
-本应用支持多种操作系统和硬件架构的组合：
+本应用专为macOS和Windows平台优化，支持多种硬件架构：
 
 ### macOS
 - **Intel Mac (x86_64)**: macOS 10.12 或更高版本
@@ -38,11 +38,6 @@
 - **Windows ARM64**: Windows 10 ARM 或更高版本
 - 自动适配当前系统架构
 - 支持Windows 10/11原生性能
-
-### Linux
-- **理论支持**: 基于pystray的GTK实现
-- 需要手动构建和测试
-- 推荐使用Ubuntu 18.04+或同等发行版
 
 ### 架构特性
 - **自动架构检测**: 构建过程自动识别当前CPU架构
@@ -78,6 +73,14 @@
    - 端口设置：修改服务端口
    - 退出：退出应用
 
+## 界面截图
+
+### macOS 系统托盘
+![macOS系统托盘界面](imgs/mactray.png)
+
+### Windows 系统托盘
+![Windows系统托盘界面](imgs/wintray.png)
+
 ## 配置
 
 应用使用`config.json`文件进行配置：
@@ -100,7 +103,7 @@
 ├── config.py           # 配置管理
 ├── config.json         # 配置文件
 ├── build.py            # 跨平台打包脚本
-├── build.sh            # macOS/Linux构建脚本（自动创建DMG）
+├── build.sh            # macOS构建脚本（自动创建DMG）
 ├── build.bat           # Windows构建脚本（自动创建ZIP）
 ├── requirements.txt    # 依赖列表
 ├── resources/          # 图标资源文件夹
@@ -117,7 +120,6 @@
 - **系统托盘**: 使用 `pystray` 库实现跨平台系统托盘支持
   - macOS: 基于 PyObjC 实现
   - Windows: 基于 Win32 API 实现
-  - Linux: 基于 GTK 实现
 - **核心服务**: 使用 `FastAPI` 实现Ollama代理服务
 - **打包工具**: 使用 `PyInstaller` 生成独立应用
 - **图标分离**: 应用图标和系统托盘图标分离设计，提供更精细的视觉体验
@@ -142,7 +144,7 @@ python build.py
 
 #### 方法2：使用Shell脚本打包（推荐）
 
-**macOS/Linux:**
+**macOS:**
 ```bash
 # 使用build.sh脚本，自动构建App并创建DMG安装包
 ./build.sh
