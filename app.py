@@ -3,8 +3,7 @@
 跨平台系统托盘应用主程序
 使用 pystray 实现跨平台系统托盘支持
 - macOS: 使用 pystray (基于 PyObjC)
-- Windows: 使用 pystray
-- Linux: 使用 pystray (基于 GTK)
+- Windows: 使用 pystray (基于 Win32 API)
 """
 
 import threading
@@ -246,7 +245,7 @@ class CrossPlatformApp:
             except subprocess.CalledProcessError:
                 # 用户取消了操作
                 pass
-        else:  # Windows 或其他平台
+        else:  # Windows
             # 在Windows上使用简单的输入对话框
             try:
                 import tkinter as tk
@@ -321,7 +320,7 @@ def create_image():
         if platform.system() == "Darwin":  # macOS
             icon_path = os.path.join(os.path.dirname(
                 os.path.abspath(__file__)), "resources", "menuicon_32.png")
-        else:  # Windows/Linux
+        else:  # Windows
             icon_path = os.path.join(os.path.dirname(
                 os.path.abspath(__file__)), "resources", "wintray.ico")
             

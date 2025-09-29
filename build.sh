@@ -60,7 +60,7 @@ activate_venv() {
         # Windows
         source .venv/Scripts/activate
     else
-        # macOS/Linux
+        # macOS
         source .venv/bin/activate
     fi
     print_info "虚拟环境已激活: $(which python)"
