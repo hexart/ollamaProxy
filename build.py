@@ -27,7 +27,9 @@ def build_app():
 
         # First, generate the spec file
         spec_cmd = [
-            "pyi-makespec",
+            sys.executable,
+            "-m",
+            "PyInstaller.utils.cliutils.makespec",
             "--name=OllamaProxy",
             "--windowed",
             "--hidden-import=pystray",
@@ -123,7 +125,13 @@ def build_app():
                 print("Warning: Could not find app = BUNDLE in spec file")
 
         # Build using the modified spec file
-        build_cmd = ["pyinstaller", "--noconfirm", spec_file]
+        build_cmd = [
+            sys.executable,
+            "-m",
+            "PyInstaller",
+            "--noconfirm",
+            spec_file
+        ]
         subprocess.run(build_cmd, check=True)
         print("Application build completed")
         return True
