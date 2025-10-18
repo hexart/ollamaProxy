@@ -13,6 +13,7 @@ import os
 import sys
 import json
 import platform
+from typing import Any, Optional
 
 # 尝试导入main模块启动服务
 try:
@@ -29,7 +30,7 @@ class CrossPlatformApp:
         self.port = self.load_port_config()
         self.is_running = False
         self.server_instance = None
-        self.icon = None
+        self.icon: Optional[Any] = None  # pystray.Icon or None
 
         # 使用定时器延迟自动启动服务
         self.delayed_auto_start()
