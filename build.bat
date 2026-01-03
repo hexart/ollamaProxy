@@ -23,35 +23,14 @@ if not exist ".venv" (
     echo [INFO] Virtual environment already exists
 )
 
-REM Activate virtual environment
-echo [INFO] Activating virtual environment...
-call .venv\Scripts\activate.bat
+REM Install dependencies using uv sync
+echo [INFO] Installing dependencies using uv sync...
+uv sync
 if %errorlevel% neq 0 (
-    echo [ERROR] Failed to activate virtual environment
+    echo [ERROR] Failed to install dependencies
     exit /b 1
 )
-
-REM Install requirements
-echo [INFO] Installing requirements from requirements.txt...
-if exist "requirements.txt" (
-    pip install -r requirements.txt
-    if %errorlevel% neq 0 (
-        echo [ERROR] Failed to install requirements
-        exit /b 1
-    )
-    echo [INFO] Requirements installed
-) else (
-    echo [WARNING] requirements.txt not found, skipping...
-)
-
-REM Install build dependencies
-echo [INFO] Installing build dependencies...
-pip install pyinstaller pystray Pillow uvicorn[standard] fastapi httpx
-if %errorlevel% neq 0 (
-    echo [ERROR] Failed to install build dependencies
-    exit /b 1
-)
-echo [INFO] Build dependencies installed
+echo [INFO] Dependencies installed
 
 REM Kill any running processes that might be locking the dist directory
 echo [INFO] Checking for processes that might be locking the dist directory...

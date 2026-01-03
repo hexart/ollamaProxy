@@ -69,7 +69,7 @@ activate_venv() {
 # 安装依赖
 install_dependencies() {
     print_info "正在安装依赖..."
-    uv pip install -r requirements.txt
+    uv sync
     print_info "依赖安装完成"
 }
 

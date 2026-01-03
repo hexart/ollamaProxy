@@ -1,0 +1,16 @@
+[project]
+name = "ollama-proxy"
+version = "1.0.0"
+description = "Ollama API Proxy with system tray support"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.119.0",
+    "uvicorn[standard]>=0.37.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.12.3",
+    "requests>=2.32.5",
+    "pystray>=0.19.5",
+    "Pillow>=12.0.0",
+    "pyinstaller",
+]
